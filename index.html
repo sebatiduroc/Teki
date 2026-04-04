@@ -335,11 +335,6 @@
   <div class="logo-sub">Qui est qui ?</div>
 
   <div class="lobby-section">
-    <div class="lobby-label">Ton prénom réel</div>
-    <input class="inp" id="input-realname" type="text" placeholder="ex: Sophie" maxlength="20" autocomplete="off">
-  </div>
-
-  <div class="lobby-section">
     <div class="lobby-label">Créer une partie</div>
     <input class="inp" id="input-partyname" type="text" placeholder="Nom de la partie…" maxlength="24" autocomplete="off">
     <button class="btn btn-primary" id="btn-create">✦ Créer</button>
@@ -520,7 +515,6 @@ const QUESTIONS = [
 
 // ── STATE ────────────────────────────────────────────────
 let myId = null;
-let myRealName = "";
 let myAlias = "";
 let partyKey = "";
 let partyName = "";
@@ -579,11 +573,8 @@ function loadParties() {
 }
 
 document.getElementById('btn-create').onclick = async () => {
-  const realName = document.getElementById('input-realname').value.trim();
   const pName = document.getElementById('input-partyname').value.trim();
-  if (!realName) return alert('Entre ton prénom réel !');
   if (!pName) return alert('Donne un nom à ta partie !');
-  myRealName = realName;
   myId = uid();
   isHost = true;
 
@@ -599,7 +590,7 @@ document.getElementById('btn-create').onclick = async () => {
     host: myId,
     createdAt: serverTimestamp(),
     players: {
-      [myId]: { realName, alias: myAlias, unmasked: false, eliminated: false }
+      [myId]: { alias: myAlias, unmasked: false, eliminated: false }
     }
   });
 
@@ -611,9 +602,6 @@ document.getElementById('btn-create').onclick = async () => {
 };
 
 async function joinParty(key, name) {
-  const realName = document.getElementById('input-realname').value.trim();
-  if (!realName) return alert('Entre ton prénom réel !');
-  myRealName = realName;
   myId = uid();
   isHost = false;
   partyKey = key;
@@ -629,7 +617,7 @@ async function joinParty(key, name) {
   myAlias = pickAlias(usedAliases);
 
   await update(ref(db, `parties/${key}/players/${myId}`), {
-    realName, alias: myAlias, unmasked: false, eliminated: false
+    alias: myAlias, unmasked: false, eliminated: false
   });
 
   listenWaiting();
