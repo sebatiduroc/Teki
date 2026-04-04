@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>TEKI – Qui est qui ?</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0f0f14;
+    --surface: #1a1a24;
+    --surface2: #22222f;
+    --accent: #f0c040;
+    --red: #ff4d6d;
+    --green: #44d9a2;
+    --blue: #5b8cff;
+    --text: #e8e8f0;
+    --muted: #6b6b88;
+    --border: #2e2e40;
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Space Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-size: 13px;
+  }
+
+  /* ── SCREENS ── */
+  .screen { display: none; flex-direction: column; height: 100dvh; overflow: hidden; }
+  .screen.active { display: flex; }
+
+  /* ── LOBBY ── */
+  #screen-lobby {
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 32px 24px;
+    background: radial-gradient(ellipse at 50% 30%, #1e1e30 0%, var(--bg) 70%);
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    color: var(--accent);
+    line-height: 1;
+    text-shadow: 0 0 40px rgba(240,192,64,0.4);
+  }
+  .logo-sub { font-size: 12px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; text-align: center; }
+
+  .lobby-section { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 10px; }
+  .lobby-label { font-family: 'Syne', sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+
+  .inp {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 16px;
+    padding: 14px 16px;
+    width: 100%;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .inp:focus { border-color: var(--accent); }
+  .inp::placeholder { color: var(--muted); }
+
+  .btn {
+    border: none; cursor: pointer; border-radius: var(--radius);
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;
+    padding: 15px 20px; transition: all .15s; letter-spacing: .5px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-primary { background: var(--accent); color: #111; }
+  .btn-primary:active { transform: scale(.97); background: #d9ac30; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1.5px solid var(--border); }
+  .btn-secondary:active { transform: scale(.97); }
+  .btn:disabled { opacity: .35; pointer-events: none; }
+
+  .or-sep { text-align: center; color: var(--muted); font-size: 11px; letter-spacing: 2px; }
+
+  /* Party list */
+  #party-list { display: flex; flex-direction: column; gap: 8px; max-width: 340px; width: 100%; }
+  .party-item {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; transition: border-color .2s;
+  }
+  .party-item:active { border-color: var(--accent); }
+  .party-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
+  .party-count { color: var(--muted); font-size: 11px; }
+
+  /* ── WAITING ROOM ── */
+  #screen-waiting {
+    padding: 28px 20px;
+    gap: 20px;
+    align-items: center;
+    background: radial-gradient(ellipse at 50% 0%, #1e1e30 0%, var(--bg) 60%);
+  }
+  .waiting-code {
+    font-family: 'Syne', sans-serif;
+    font-size: 40px; font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 6px;
+    text-align: center;
+  }
+  .waiting-title { font-size: 11px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; text-align: center; }
+  .players-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 8px; width: 100%; max-width: 340px;
+  }
+  .player-chip {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color .3s;
+  }
+  .player-chip.host-chip { border-color: var(--accent); color: var(--accent); }
+  .my-alias-box {
+    background: var(--surface2);
+    border: 1.5px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    text-align: center;
+    width: 100%; max-width: 340px;
+  }
+  .my-alias-label { font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  .my-alias-name { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px; color: var(--accent); }
+
+  /* ── GAME ── */
+  #screen-game { padding: 0; }
+
+  /* Header */
+  .game-header {
+    background: var(--surface);
+    border-bottom: 1.5px solid var(--border);
+    padding: 8px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .game-party-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; color: var(--accent); }
+  .btn-history {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; font-size: 11px;
+    cursor: pointer; color: var(--text); font-family: 'Space Mono', monospace;
+    transition: border-color .2s;
+  }
+  .btn-history:active { border-color: var(--accent); }
+  .btn-history.disabled { opacity: .35; pointer-events: none; }
+
+  /* Players scroll zone */
+  .players-zone {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .player-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    transition: border-color .2s, background .2s;
+    min-height: 42px;
+  }
+  .player-row.is-me { background: var(--surface2); }
+  .player-alias {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px;
+    min-width: 70px; flex-shrink: 0;
+    cursor: pointer;
+    transition: color .3s;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .player-alias.unmasked { color: var(--green) !important; cursor: default; }
+  .player-alias.red-alias { color: var(--red); }
+  .player-alias:not(.unmasked):active { background: rgba(255,77,109,.15); }
+  .player-answer {
+    flex: 1; font-size: 12px; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .player-answer.answered { color: var(--text); }
+  .waiting-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+    animation: pulse 1.2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .player-row.eliminated { opacity: .4; }
+  .elim-badge { font-size: 10px; color: var(--muted); margin-left: auto; }
+
+  @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+  /* Bottom zone */
+  .bottom-zone {
+    background: var(--surface);
+    border-top: 1.5px solid var(--border);
+    padding: 10px;
+    flex-shrink: 0;
+  }
+  .question-text {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px;
+    color: var(--text); margin-bottom: 8px; line-height: 1.3;
+    min-height: 20px;
+  }
+  .question-placeholder { color: var(--muted); font-size: 12px; font-family: 'Space Mono', monospace; font-weight: 400; }
+  .answers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .answer-btn {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 10px 8px;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px;
+    color: var(--text); cursor: pointer; transition: all .15s;
+    text-align: center; line-height: 1.2;
+  }
+  .answer-btn:active { transform: scale(.96); }
+  .answer-btn.selected { border-color: var(--accent); background: rgba(240,192,64,.15); color: var(--accent); }
+  .answer-btn:disabled { opacity: .35; pointer-events: none; }
+  .answer-btn.locked { border-color: var(--green); background: rgba(68,217,162,.12); color: var(--green); pointer-events: none; }
+
+  .action-row { display: flex; gap: 8px; margin-top: 8px; }
+  .btn-ask-q { flex: 1; }
+
+  /* Status bar */
+  .status-bar {
+    text-align: center; font-size: 11px; color: var(--muted);
+    padding: 6px 10px; letter-spacing: .5px;
+    flex-shrink: 0;
+  }
+  .status-bar.alert { color: var(--accent); }
+
+  /* ── OVERLAY HISTORY ── */
+  .overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,.8);
+    display: flex; flex-direction: column;
+    padding: 20px 16px;
+  }
+  .overlay.hidden { display: none; }
+  .overlay-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .overlay-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; }
+  .btn-close {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; color: var(--text);
+    font-family: 'Space Mono', monospace; font-size: 12px; cursor: pointer;
+  }
+  .overlay-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .history-q { background: var(--surface); border-radius: var(--radius); padding: 12px 14px; }
+  .history-q-text { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+  .history-answers { display: flex; flex-direction: column; gap: 4px; }
+  .history-answer-row { display: flex; justify-content: space-between; font-size: 12px; }
+  .history-player { color: var(--muted); }
+  .history-resp { color: var(--text); font-weight: 700; }
+
+  /* ── POPUP CKI ── */
+  .popup-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .popup-overlay.hidden { display: none; }
+  .popup-box {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    width: 100%; max-width: 340px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .popup-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; text-align: center; }
+  .popup-sub { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; }
+  .popup-inp-row { display: flex; gap: 8px; }
+  .popup-actions { display: flex; gap: 8px; }
+  .btn-true { flex: 1; background: var(--green); color: #111; }
+  .btn-true:active { background: #35c490; }
+  .btn-false { flex: 1; background: var(--red); color: #fff; }
+  .btn-false:active { background: #e0334e; }
+  .btn-cancel { background: var(--surface2); color: var(--muted); border: 1.5px solid var(--border); }
+
+  /* ── ENDGAME ── */
+  #screen-end {
+    align-items: center; justify-content: center; gap: 24px;
+    padding: 32px 24px;
+    background: radial-gradient(ellipse at 50% 30%, #1e1e30 0%, var(--bg) 70%);
+  }
+  .end-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 32px; color: var(--accent); text-align: center; }
+  .end-loser { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; text-align: center; color: var(--red); }
+  .end-results { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 8px; }
+  .end-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface); border-radius: 10px; padding: 10px 14px;
+    border: 1.5px solid var(--border);
+  }
+  .end-alias { font-family: 'Syne', sans-serif; font-weight: 700; }
+  .end-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; }
+  .badge-green { background: rgba(68,217,162,.2); color: var(--green); }
+  .badge-red { background: rgba(255,77,109,.2); color: var(--red); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOBBY ══════════════ -->
+<div id="screen-lobby" class="screen active">
+  <div class="logo">TEKI</div>
+  <div class="logo-sub">Qui est qui ?</div>
+
+  <div class="lobby-section">
+    <div class="lobby-label">Ton prénom réel</div>
+    <input class="inp" id="input-realname" type="text" placeholder="ex: Sophie" maxlength="20" autocomplete="off">
+  </div>
+
+  <div class="lobby-section">
+    <div class="lobby-label">Créer une partie</div>
+    <input class="inp" id="input-partyname" type="text" placeholder="Nom de la partie…" maxlength="24" autocomplete="off">
+    <button class="btn btn-primary" id="btn-create">✦ Créer</button>
+  </div>
+
+  <div class="or-sep">— ou rejoindre —</div>
+
+  <div id="party-list"><div style="color:var(--muted);font-size:12px;text-align:center">Chargement des parties…</div></div>
+</div>
+
+<!-- ══════════════ WAITING ROOM ══════════════ -->
+<div id="screen-waiting" class="screen">
+  <div class="waiting-title">Partie</div>
+  <div class="waiting-code" id="waiting-party-name">—</div>
+  <div class="my-alias-box">
+    <div class="my-alias-label">Ton prénom d'emprunt</div>
+    <div class="my-alias-name" id="my-alias-display">—</div>
+  </div>
+  <div class="players-grid" id="waiting-players-grid"></div>
+  <button class="btn btn-primary" id="btn-start" style="max-width:340px;width:100%">▶ Lancer la partie</button>
+  <div id="waiting-status" style="font-size:12px;color:var(--muted);text-align:center"></div>
+</div>
+
+<!-- ══════════════ GAME ══════════════ -->
+<div id="screen-game" class="screen">
+  <div class="game-header">
+    <div class="game-party-name" id="game-party-label">TEKI</div>
+    <button class="btn-history disabled" id="btn-history" onclick="toggleHistory()">📋 Historique</button>
+  </div>
+
+  <div class="players-zone" id="players-zone"></div>
+
+  <div class="status-bar" id="status-bar">En attente d'une question…</div>
+
+  <div class="bottom-zone">
+    <div class="question-text" id="current-question-text">
+      <span class="question-placeholder">Aucune question en cours</span>
+    </div>
+    <div class="answers-grid" id="answers-grid"></div>
+    <div class="action-row">
+      <button class="btn btn-primary btn-ask-q" id="btn-ask-question" onclick="openQuestionPicker()">Poser une question</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ END GAME ══════════════ -->
+<div id="screen-end" class="screen">
+  <div class="end-title">Fin de partie !</div>
+  <div class="end-loser" id="end-loser-text"></div>
+  <div class="end-results" id="end-results"></div>
+  <button class="btn btn-secondary" onclick="goHome()" style="max-width:340px;width:100%">↩ Accueil</button>
+</div>
+
+<!-- ══════════════ OVERLAY HISTORY ══════════════ -->
+<div class="overlay hidden" id="overlay-history">
+  <div class="overlay-header">
+    <div class="overlay-title">Historique</div>
+    <button class="btn-close" onclick="toggleHistory()">Fermer</button>
+  </div>
+  <div class="overlay-body" id="history-body"></div>
+</div>
+
+<!-- ══════════════ POPUP: CHOISIR UNE QUESTION ══════════════ -->
+<div class="popup-overlay hidden" id="popup-questions">
+  <div class="popup-box" style="max-height:80vh;overflow-y:auto;gap:10px">
+    <div class="popup-title" style="font-size:17px">Choisir une question</div>
+    <div id="questions-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    <button class="btn btn-secondary btn-cancel" onclick="closePopup('popup-questions')">Annuler</button>
+  </div>
+</div>
+
+<!-- ══════════════ POPUP: CKI ? ══════════════ -->
+<div class="popup-overlay hidden" id="popup-cki">
+  <div class="popup-box">
+    <div class="popup-title">cki ?</div>
+    <div class="popup-sub" id="cki-target-label">Tu penses avoir identifié <strong id="cki-alias-name">—</strong></div>
+    <div class="popup-inp-row">
+      <input class="inp" id="cki-name-input" type="text" placeholder="Prénom réel…" maxlength="20" autocomplete="off" style="flex:1">
+      <button class="btn btn-primary" onclick="sendCki()" style="padding:14px 16px">→</button>
+    </div>
+    <button class="btn btn-secondary btn-cancel" onclick="closePopup('popup-cki')">Annuler</button>
+  </div>
+</div>
+
+<!-- ══════════════ POPUP: RÉPONDRE CKI (cible) ══════════════ -->
+<div class="popup-overlay hidden" id="popup-cki-target">
+  <div class="popup-box">
+    <div class="popup-title" style="font-size:26px">🎯</div>
+    <div class="popup-sub" id="cki-question-text">Es-tu vraiment <strong id="cki-proposed-name">—</strong> ?</div>
+    <div class="popup-actions">
+      <button class="btn btn-true" onclick="answerCki(true)">✅ Vrai !</button>
+      <button class="btn btn-false" onclick="answerCki(false)">❌ Faux !</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ FIREBASE + GAME LOGIC ══════════════ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, push, onValue, update, remove, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB5t-aD8gTWIAG4srkTpxqnKBrHQV9irHQ",
+  authDomain: "teki-8a51a.firebaseapp.com",
+  databaseURL: "https://teki-8a51a-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "teki-8a51a",
+  storageBucket: "teki-8a51a.firebasestorage.app",
+  messagingSenderId: "305150373692",
+  appId: "1:305150373692:web:c23fb5fa76a7eccb437839"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// ── DATA ────────────────────────────────────────────────
+const ALIASES = [
+  "Ambre","Basile","Camille","Darius","Elise","Farouk","Gaelle","Hamid",
+  "Ines","Jonas","Kenza","Luca","Manon","Nael","Oceane","Pablo","Quinn",
+  "Romy","Sofiane","Tara","Ugo","Valentina","Wassim","Xena","Youssef",
+  "Zara","Adrien","Bintou","Corentin","Djamila","Erwann","Fatou","Gaspard",
+  "Hana","Ilyes","Jade","Killian","Laetitia","Mehdi","Nina","Omar","Pauline",
+  "Quentin","Roxane","Soren","Titouan","Ulrike","Viktor","Wafa"
+];
+
+const QUESTIONS = [
+  { q:"Quelle est ta couleur préférée ?", a:["Rouge","Bleu","Vert","Jaune"] },
+  { q:"Tu es plutôt…", a:["Matin","Soir","Nuit","Sieste"] },
+  { q:"Ton animal préféré ?", a:["Chien","Chat","Oiseau","Autre"] },
+  { q:"Ta saison préférée ?", a:["Printemps","Été","Automne","Hiver"] },
+  { q:"Tu préfères…", a:["Mer","Montagne","Campagne","Ville"] },
+  { q:"Ton sport préféré ?", a:["Collectif","Individuel","Je n'en fais pas","Les deux"] },
+  { q:"Tu es plutôt…", a:["Aventurier","Casanier","Les deux","Aucun"] },
+  { q:"Ton genre de film préféré ?", a:["Comédie","Action","Drame","Horreur"] },
+  { q:"Tu manges plutôt…", a:["Sucré","Salé","Les deux","Ni l'un ni l'autre"] },
+  { q:"Ton rapport à l'heure ?", a:["Toujours en avance","Pile à l'heure","Souvent en retard","Très en retard"] },
+  { q:"Tu es plutôt…", a:["Plutôt bavard","Plutôt discret","Ça dépend","Très discret"] },
+  { q:"Quand tu es stressé tu…", a:["Tu manges","Tu dors","Tu parles","Tu te tais"] },
+  { q:"Ton rapport à l'argent ?", a:["Économe","Dépensier","Équilibré","Je n'y pense pas"] },
+  { q:"Quel type de musique tu écoutes ?", a:["Pop/Rock","Électro/Rap","Classique/Jazz","Tout et n'importe quoi"] },
+  { q:"Tu préfères…", a:["Lire","Regarder une série","Écouter un podcast","Rien de tout ça"] },
+  { q:"Ta boisson préférée ?", a:["Eau","Jus de fruit","Thé/Café","Soda"] },
+  { q:"Ton rapport aux réseaux sociaux ?", a:["Accro","Utilisateur modéré","Peu actif","Je n'en ai pas"] },
+  { q:"Quand tu voyages tu préfères…", a:["Tout organiser","Improviser","Un mix","Je ne voyage pas"] },
+  { q:"Tu es plutôt…", a:["Optimiste","Pessimiste","Réaliste","Selon les jours"] },
+  { q:"Ton rapport au rangement ?", a:["Très ordonné","Plutôt ordonné","Plutôt bordélique","Très bordélique"] },
+  { q:"Tu travailles / étudies plutôt…", a:["Tôt le matin","En journée","Le soir","La nuit"] },
+  { q:"Quand quelqu'un t'énerve tu…", a:["Tu le dis","Tu ravales","Tu t'éloignes","Tu ris"] },
+  { q:"Ta façon de prendre des décisions ?", a:["Très rapidement","Après réflexion","J'hésite longtemps","Je délègue"] },
+  { q:"Ton rapport aux règles ?", a:["Je les suis","Je les contourne","Je les ignore","Ça dépend"] },
+  { q:"Tu préfères les repas…", a:["En famille","Entre amis","Seul","Peu importe"] },
+  { q:"Ton humeur au réveil ?", a:["Super en forme","Moyennement","Pas du tout","Ça varie"] },
+  { q:"Tu préfères…", a:["Le silence","Le bruit ambiant","La musique","La télé en fond"] },
+  { q:"Ton rapport aux animaux de compagnie ?", a:["J'en ai","J'en veux","Je n'aime pas","J'aime mais sans en avoir"] },
+  { q:"Quelle qualité tu préfères chez les autres ?", a:["L'humour","L'honnêteté","La générosité","La loyauté"] },
+  { q:"Ton principal défaut selon toi ?", a:["L'impatience","La procrastination","L'orgueil","L'anxiété"] },
+  { q:"Tu aimes faire la cuisine ?", a:["J'adore","Ça m'est égal","Je n'aime pas","Je ne sais pas cuisiner"] },
+  { q:"Ton rapport aux nouvelles technologies ?", a:["Passionné","Utilisateur basique","Méfiant","Je m'y perds"] },
+  { q:"Quand tu as un problème tu…", a:["En parles","Cherches seul","Demandes de l'aide","Attends que ça passe"] },
+  { q:"Tu préfères…", a:["Offrir","Recevoir","Les deux pareil","Ni l'un ni l'autre"] },
+  { q:"Ton rapport à la ponctualité ?", a:["Très important","Important","Relatif","Sans importance"] },
+  { q:"Tu préfères dormir avec…", a:["Beaucoup de couvertures","Peu de couvertures","La fenêtre ouverte","La fenêtre fermée"] },
+  { q:"Ton rapport à la compétition ?", a:["J'adore gagner","J'aime jouer sans enjeu","Je déteste perdre","La compétition ne m'intéresse pas"] },
+  { q:"Quand tu es triste tu…", a:["Tu en parles","Tu t'isoles","Tu fais du sport","Tu regardes un film"] },
+  { q:"Ton premier réflexe le matin ?", a:["Téléphone","Café/Thé","Douche","Fenêtre/Air frais"] },
+  { q:"Combien d'amis proches as-tu ?", a:["1 à 2","3 à 5","6 à 10","Plus de 10"] },
+  { q:"Tu prends tes responsabilités…", a:["Toujours","La plupart du temps","Rarement","Ça dépend"] },
+  { q:"Tu regrettes facilement ?", a:["Souvent","Parfois","Rarement","Jamais"] },
+  { q:"Ton rapport aux compliments ?", a:["J'adore en recevoir","Ça me gêne","Je les accepte naturellement","Je n'y crois pas"] },
+  { q:"Quand tu t'ennuies tu…", a:["Tu sors","Tu crées quelque chose","Tu scrolles","Tu dors"] },
+  { q:"Ton rapport à la politique ?", a:["Très engagé","Intéressé sans militer","Indifférent","Je l'évite"] },
+  { q:"Tu es plus…", a:["Tête","Cœur","Instinct","Hasard"] },
+  { q:"Ton rapport à la religion ?", a:["Croyant pratiquant","Croyant non pratiquant","Agnostique","Athée"] },
+  { q:"Tu t'adaptes facilement à une situation nouvelle ?", a:["Très facilement","Assez bien","Avec difficulté","Très difficilement"] },
+  { q:"Ton rapport à la nature ?", a:["Je l'adore","J'aime y aller de temps en temps","Pas vraiment mon truc","Je m'en fiche"] },
+  { q:"Si tu pouvais choisir un super-pouvoir ?", a:["Voler","Invisibilité","Lire dans les pensées","Arrêter le temps"] },
+];
+
+// ── STATE ────────────────────────────────────────────────
+let myId = null;
+let myRealName = "";
+let myAlias = "";
+let partyKey = "";
+let partyName = "";
+let isHost = false;
+let gameState = null;
+let usedQuestionIndices = new Set();
+let myAnsweredQuestions = new Set(); // q indices answered
+let ckiTargetId = null; // who I'm guessing
+let ckiPendingId = null; // incoming cki for me
+let ckiPendingName = null;
+let unsubscribeGame = null;
+
+// ── UTILS ────────────────────────────────────────────────
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function pickAlias(usedAliases) {
+  const available = ALIASES.filter(a => !usedAliases.includes(a));
+  return available[Math.floor(Math.random() * available.length)] || ALIASES[Math.floor(Math.random() * ALIASES.length)];
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+function closePopup(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+window.closePopup = closePopup;
+
+function openPopup(id) {
+  document.getElementById(id).classList.remove('hidden');
+}
+
+// ── LOBBY ────────────────────────────────────────────────
+function loadParties() {
+  const partiesRef = ref(db, 'parties');
+  onValue(partiesRef, snap => {
+    const data = snap.val() || {};
+    const list = document.getElementById('party-list');
+    const entries = Object.entries(data).filter(([k, v]) => v.status === 'waiting');
+    if (entries.length === 0) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center">Aucune partie en attente</div>';
+      return;
+    }
+    list.innerHTML = '';
+    entries.forEach(([key, party]) => {
+      const playerCount = Object.keys(party.players || {}).length;
+      const div = document.createElement('div');
+      div.className = 'party-item';
+      div.innerHTML = `<span class="party-name">${party.name}</span><span class="party-count">${playerCount}/10 joueur${playerCount>1?'s':''}</span>`;
+      div.onclick = () => joinParty(key, party.name);
+      list.appendChild(div);
+    });
+  });
+}
+
+document.getElementById('btn-create').onclick = async () => {
+  const realName = document.getElementById('input-realname').value.trim();
+  const pName = document.getElementById('input-partyname').value.trim();
+  if (!realName) return alert('Entre ton prénom réel !');
+  if (!pName) return alert('Donne un nom à ta partie !');
+  myRealName = realName;
+  myId = uid();
+  isHost = true;
+
+  const partyRef = ref(db, 'parties');
+  const newRef = push(partyRef);
+  partyKey = newRef.key;
+  partyName = pName;
+  myAlias = pickAlias([]);
+
+  await set(newRef, {
+    name: pName,
+    status: 'waiting',
+    host: myId,
+    createdAt: serverTimestamp(),
+    players: {
+      [myId]: { realName, alias: myAlias, unmasked: false, eliminated: false }
+    }
+  });
+
+  listenWaiting();
+  showScreen('waiting');
+  document.getElementById('waiting-party-name').textContent = pName;
+  document.getElementById('my-alias-display').textContent = myAlias;
+  document.getElementById('btn-start').style.display = 'flex';
+};
+
+async function joinParty(key, name) {
+  const realName = document.getElementById('input-realname').value.trim();
+  if (!realName) return alert('Entre ton prénom réel !');
+  myRealName = realName;
+  myId = uid();
+  isHost = false;
+  partyKey = key;
+  partyName = name;
+
+  const playersRef = ref(db, `parties/${key}/players`);
+  const snap = await get(playersRef);
+  const players = snap.val() || {};
+  const count = Object.keys(players).length;
+  if (count >= 10) return alert('Partie pleine !');
+
+  const usedAliases = Object.values(players).map(p => p.alias);
+  myAlias = pickAlias(usedAliases);
+
+  await update(ref(db, `parties/${key}/players/${myId}`), {
+    realName, alias: myAlias, unmasked: false, eliminated: false
+  });
+
+  listenWaiting();
+  showScreen('waiting');
+  document.getElementById('waiting-party-name').textContent = name;
+  document.getElementById('my-alias-display').textContent = myAlias;
+  document.getElementById('btn-start').style.display = isHost ? 'flex' : 'none';
+}
+
+function listenWaiting() {
+  const partyRef = ref(db, `parties/${partyKey}`);
+  onValue(partyRef, snap => {
+    const data = snap.val();
+    if (!data) return;
+    const players = data.players || {};
+    const grid = document.getElementById('waiting-players-grid');
+    grid.innerHTML = '';
+    Object.entries(players).forEach(([id, p]) => {
+      const div = document.createElement('div');
+      div.className = 'player-chip' + (id === data.host ? ' host-chip' : '');
+      div.textContent = p.alias + (id === data.host ? ' ✦' : '');
+      grid.appendChild(div);
+    });
+    const count = Object.keys(players).length;
+    document.getElementById('waiting-status').textContent = `${count} joueur${count>1?'s':''} en attente`;
+    document.getElementById('btn-start').disabled = count < 2;
+
+    if (data.status === 'playing') {
+      startGame(data);
+    }
+  });
+}
+
+document.getElementById('btn-start').onclick = async () => {
+  await update(ref(db, `parties/${partyKey}`), { status: 'playing' });
+};
+
+// ── GAME ────────────────────────────────────────────────
+function startGame(data) {
+  showScreen('game');
+  document.getElementById('game-party-label').textContent = partyName;
+  listenGame();
+}
+
+function listenGame() {
+  if (unsubscribeGame) unsubscribeGame();
+  const partyRef = ref(db, `parties/${partyKey}`);
+  unsubscribeGame = onValue(partyRef, snap => {
+    const data = snap.val();
+    if (!data) return;
+    gameState = data;
+    renderGame(data);
+    checkEndGame(data);
+    handleCkiIncoming(data);
+    handleCkiResolved(data);
+  });
+}
+
+function renderGame(data) {
+  const players = data.players || {};
+  const currentQ = data.currentQuestion || null;
+  const answers = data.answers || {};
+  const ckiPending = data.ckiPending || null;
+
+  // Players zone
+  const zone = document.getElementById('players-zone');
+  zone.innerHTML = '';
+  const myCkiUsed = data.ckiUsed && data.ckiUsed[myId];
+
+  Object.entries(players).forEach(([id, p]) => {
+    const row = document.createElement('div');
+    row.className = 'player-row' + (id === myId ? ' is-me' : '') + (p.eliminated ? ' eliminated' : '');
+
+    // Alias
+    const aliasEl = document.createElement('div');
+    aliasEl.className = 'player-alias ' + (p.unmasked ? 'unmasked' : 'red-alias');
+    aliasEl.textContent = p.alias + (id === myId ? ' (moi)' : '');
+
+    // Click to CKI
+    if (id !== myId && !p.unmasked && !p.eliminated && currentQ && !myCkiUsed && !ckiPending) {
+      aliasEl.onclick = () => openCki(id, p.alias);
+    }
+
+    // Answer
+    const answerEl = document.createElement('div');
+    const playerAnswers = answers[id] || {};
+    const latestAnswer = currentQ ? (playerAnswers[currentQ.index] || null) : null;
+
+    if (p.eliminated) {
+      answerEl.className = 'player-answer';
+      answerEl.innerHTML = '<span class="elim-badge">hors jeu</span>';
+    } else if (latestAnswer) {
+      answerEl.className = 'player-answer answered';
+      answerEl.textContent = latestAnswer;
+    } else if (currentQ) {
+      const dot = document.createElement('div');
+      dot.className = 'waiting-dot';
+      answerEl.className = 'player-answer';
+      answerEl.appendChild(dot);
+    }
+
+    row.appendChild(aliasEl);
+    row.appendChild(answerEl);
+    zone.appendChild(row);
+  });
+
+  // Question display
+  const qText = document.getElementById('current-question-text');
+  const answersGrid = document.getElementById('answers-grid');
+  answersGrid.innerHTML = '';
+
+  if (currentQ) {
+    qText.innerHTML = '';
+    qText.textContent = currentQ.question;
+
+    const myAnswer = (answers[myId] || {})[currentQ.index];
+    const myEliminated = players[myId]?.eliminated;
+
+    currentQ.choices.forEach((choice, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'answer-btn';
+      btn.textContent = choice;
+      if (myAnswer) {
+        btn.classList.add(myAnswer === choice ? 'locked' : '');
+        btn.disabled = true;
+      }
+      if (myEliminated) btn.disabled = true;
+      btn.onclick = () => submitAnswer(currentQ.index, choice);
+      answersGrid.appendChild(btn);
+    });
+
+    // History button active
+    document.getElementById('btn-history').classList.remove('disabled');
+    document.getElementById('btn-history').classList.remove('btn-history');
+
+    // Ask question button
+    document.getElementById('btn-ask-question').disabled = true;
+  } else {
+    qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
+    document.getElementById('btn-ask-question').disabled = players[myId]?.eliminated || false;
+  }
+
+  // CKI lock: if ckiPending, disable alias clicks — already handled above since ckiPending truthy
+  // Status bar
+  const statusBar = document.getElementById('status-bar');
+  if (ckiPending) {
+    statusBar.textContent = `🎯 ${ckiPending.guesserAlias} essaie de démasquer quelqu'un…`;
+    statusBar.className = 'status-bar alert';
+  } else if (currentQ) {
+    const answeredCount = Object.keys(answers).filter(id => (answers[id] || {})[currentQ.index]).length;
+    const activeCount = Object.values(players).filter(p => !p.eliminated).length;
+    statusBar.textContent = `${answeredCount}/${activeCount} réponses reçues`;
+    statusBar.className = 'status-bar';
+  } else {
+    statusBar.textContent = 'En attente d\'une question…';
+    statusBar.className = 'status-bar';
+  }
+
+  // Update history
+  renderHistory(data);
+}
+
+async function submitAnswer(qIndex, choice) {
+  await update(ref(db, `parties/${partyKey}/answers/${myId}`), { [qIndex]: choice });
+}
+
+// ── QUESTION PICKER ────────────────────────────────────────
+window.openQuestionPicker = function() {
+  const data = gameState;
+  if (!data) return;
+  const used = new Set(Object.keys(data.usedQuestions || {}).map(Number));
+  const list = document.getElementById('questions-list');
+  list.innerHTML = '';
+  QUESTIONS.forEach((q, i) => {
+    if (used.has(i)) return;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary';
+    btn.style.cssText = 'text-align:left;font-size:12px;padding:10px 12px;line-height:1.4;font-family:Space Mono,monospace;font-weight:400;';
+    btn.textContent = q.q;
+    btn.onclick = () => postQuestion(i);
+    list.appendChild(btn);
+  });
+  openPopup('popup-questions');
+};
+
+async function postQuestion(index) {
+  const q = QUESTIONS[index];
+  closePopup('popup-questions');
+
+  // Mark used
+  await update(ref(db, `parties/${partyKey}/usedQuestions`), { [index]: true });
+
+  await update(ref(db, `parties/${partyKey}`), {
+    currentQuestion: { index, question: q.q, choices: q.a },
+    ckiPending: null,
+    ckiUsed: null, // reset per-question cki usage
+  });
+}
+
+// ── CKI ────────────────────────────────────────────────
+function openCki(targetId, targetAlias) {
+  ckiTargetId = targetId;
+  document.getElementById('cki-alias-name').textContent = targetAlias;
+  document.getElementById('cki-name-input').value = '';
+  openPopup('popup-cki');
+}
+window.openCki = openCki;
+
+window.sendCki = async function() {
+  const proposedName = document.getElementById('cki-name-input').value.trim();
+  if (!proposedName) return;
+  closePopup('popup-cki');
+
+  const myAliasCurrent = gameState?.players?.[myId]?.alias || myAlias;
+
+  // Write CKI to firebase
+  await update(ref(db, `parties/${partyKey}`), {
+    ckiPending: {
+      guesserId: myId,
+      guesserAlias: myAliasCurrent,
+      targetId: ckiTargetId,
+      proposedName: proposedName,
+      resolvedAt: null,
+    },
+    [`ckiUsed/${myId}`]: true,
+  });
+};
+
+function handleCkiIncoming(data) {
+  const ckiPending = data.ckiPending;
+  if (!ckiPending) {
+    closePopup('popup-cki-target');
+    return;
+  }
+  if (ckiPending.targetId === myId && !ckiPending.resolvedAt) {
+    document.getElementById('cki-proposed-name').textContent = ckiPending.proposedName;
+    openPopup('popup-cki-target');
+  }
+}
+
+window.answerCki = async function(isTrue) {
+  closePopup('popup-cki-target');
+  const ckiPending = gameState?.ckiPending;
+  if (!ckiPending) return;
+
+  if (isTrue) {
+    // Mark me as unmasked
+    await update(ref(db, `parties/${partyKey}/players/${myId}`), { unmasked: true });
+  }
+  // Clear CKI
+  await update(ref(db, `parties/${partyKey}`), { ckiPending: null });
+};
+
+function handleCkiResolved(data) {
+  // Nothing extra needed — reactive render handles it
+}
+
+// ── HISTORY ────────────────────────────────────────────────
+window.toggleHistory = function() {
+  const ov = document.getElementById('overlay-history');
+  ov.classList.toggle('hidden');
+};
+
+function renderHistory(data) {
+  const body = document.getElementById('history-body');
+  body.innerHTML = '';
+  const used = data.usedQuestions || {};
+  const answers = data.answers || {};
+  const players = data.players || {};
+
+  Object.keys(used).map(Number).sort().forEach(idx => {
+    const q = QUESTIONS[idx];
+    if (!q) return;
+    const div = document.createElement('div');
+    div.className = 'history-q';
+
+    let html = `<div class="history-q-text">${q.q}</div><div class="history-answers">`;
+    Object.entries(players).forEach(([pid, p]) => {
+      const ans = (answers[pid] || {})[idx];
+      if (ans) {
+        html += `<div class="history-answer-row"><span class="history-player">${p.alias}</span><span class="history-resp">${ans}</span></div>`;
+      }
+    });
+    html += '</div>';
+    div.innerHTML = html;
+    body.appendChild(div);
+  });
+
+  if (body.children.length === 0) {
+    body.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center">Aucune question posée pour l\'instant</div>';
+  }
+}
+
+// ── END GAME ────────────────────────────────────────────────
+function checkEndGame(data) {
+  const players = data.players || {};
+  const active = Object.entries(players).filter(([id, p]) => !p.eliminated);
+  const unmasked = active.filter(([id, p]) => p.unmasked);
+  const masked = active.filter(([id, p]) => !p.unmasked);
+
+  if (active.length >= 2 && masked.length === 1) {
+    // Last one standing unmasked
+    const loser = masked[0];
+    showEndGame(players, loser[0], loser[1].alias);
+  }
+}
+
+function showEndGame(players, loserId, loserAlias) {
+  showScreen('end');
+  document.getElementById('end-loser-text').textContent = `💀 ${loserAlias} a perdu !`;
+  const results = document.getElementById('end-results');
+  results.innerHTML = '';
+  Object.entries(players).forEach(([id, p]) => {
+    const row = document.createElement('div');
+    row.className = 'end-row';
+    const isLoser = id === loserId;
+    row.innerHTML = `
+      <span class="end-alias">${p.alias}</span>
+      <span class="end-badge ${isLoser ? 'badge-red' : 'badge-green'}">${isLoser ? '💀 Dernier' : '✓ Démasqué'}</span>
+    `;
+    results.appendChild(row);
+  });
+}
+
+window.goHome = function() {
+  // Clean up
+  if (isHost) {
+    remove(ref(db, `parties/${partyKey}`));
+  } else {
+    remove(ref(db, `parties/${partyKey}/players/${myId}`));
+  }
+  location.reload();
+};
+
+// ── INIT ────────────────────────────────────────────────
+loadParties();
+
+// Enter key on inputs
+document.getElementById('cki-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') window.sendCki();
+});
+</script>
+</body>
+</html>
