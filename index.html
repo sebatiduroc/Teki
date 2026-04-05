@@ -209,6 +209,9 @@
     border-radius: 6px;
   }
   .player-alias.unmasked { color: var(--green) !important; cursor: default; }
+  .own-alias { outline: 2px solid currentColor; border-radius: 6px; cursor: default !important; }
+  .cki-clickable { cursor: pointer; text-decoration: underline dotted; }
+  .cki-clickable:active { background: rgba(255,77,109,.2); border-radius: 6px; }
   .player-alias.red-alias { color: var(--red); }
   .player-alias:not(.unmasked):active { background: rgba(255,77,109,.15); }
   .player-answer {
@@ -392,7 +395,6 @@
     <div class="answers-grid" id="answers-grid"></div>
     <div class="action-row">
       <button class="btn btn-primary btn-ask-q" id="btn-ask-question" onclick="openQuestionPicker()">Poser une question</button>
-      <button class="btn btn-secondary" id="btn-close-question" onclick="closeQuestion()" style="display:none;padding:15px 12px;font-size:12px">✓ Suivante</button>
     </div>
   </div>
 </div>
@@ -733,8 +735,20 @@ function listenGame() {
     }
     renderGame(data);
     checkEndGame(data);
-    handleCkiIncoming(data);
-    handleCkiResolved(data);
+  });
+
+  // Dedicated listener on ckiPending — fires only when CKI changes
+  const ckiRef = ref(db, `parties/${partyKey}/ckiPending`);
+  onValue(ckiRef, snap => {
+    const cki = snap.val();
+    if (!cki) {
+      closePopup('popup-cki-target');
+      return;
+    }
+    if (cki.targetId === myId) {
+      document.getElementById('cki-proposed-name').textContent = cki.proposedName;
+      openPopup('popup-cki-target');
+    }
   });
 }
 
@@ -755,12 +769,21 @@ function renderGame(data) {
 
     // Alias
     const aliasEl = document.createElement('div');
-    aliasEl.className = 'player-alias ' + (p.unmasked ? 'unmasked' : 'red-alias');
-    aliasEl.textContent = p.alias + (id === myId ? ' (moi)' : '');
+    const playerAnswers2 = answers[id] || {};
+    const hasAnsweredCurrent = currentQ && playerAnswers2[currentQ.index];
 
-    // Click to CKI — allowed once a question has been asked, one per player per question
-    if (id !== myId && !p.unmasked && !p.eliminated && currentQ && !myCkiUsed) {
-      aliasEl.onclick = () => openCki(id, p.alias);
+    if (id === myId) {
+      // Own alias: highlighted, never clickable
+      aliasEl.className = 'player-alias ' + (p.unmasked ? 'unmasked' : 'red-alias') + ' own-alias';
+      aliasEl.textContent = p.alias;
+    } else {
+      aliasEl.className = 'player-alias ' + (p.unmasked ? 'unmasked' : 'red-alias');
+      aliasEl.textContent = p.alias;
+      // Clickable only if: target has answered current question, I haven't used my CKI, target not unmasked/eliminated
+      if (!p.unmasked && !p.eliminated && hasAnsweredCurrent && !myCkiUsed) {
+        aliasEl.classList.add('cki-clickable');
+        aliasEl.onclick = () => openCki(id, p.alias);
+      }
     }
 
     // Answer
@@ -815,23 +838,17 @@ function renderGame(data) {
     document.getElementById('btn-history').classList.remove('disabled');
     document.getElementById('btn-history').classList.remove('btn-history');
 
-    // Ask question button — hidden while a question is active, show "Suivante" instead
-    document.getElementById('btn-ask-question').style.display = 'none';
-    document.getElementById('btn-close-question').style.display = 'flex';
+    // Ask question button disabled while a question is active
+    document.getElementById('btn-ask-question').disabled = true;
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
-    document.getElementById('btn-ask-question').style.display = 'flex';
     document.getElementById('btn-ask-question').disabled = players[myId]?.eliminated || false;
-    document.getElementById('btn-close-question').style.display = 'none';
   }
 
   // CKI lock: if ckiPending, disable alias clicks — already handled above since ckiPending truthy
   // Status bar
   const statusBar = document.getElementById('status-bar');
-  if (ckiPending && !ckiPending.resolved) {
-    statusBar.textContent = `🎯 ${ckiPending.guesserAlias} tente de démasquer quelqu'un…`;
-    statusBar.className = 'status-bar alert';
-  } else if (currentQ) {
+  if (currentQ) {
     const answeredCount = Object.keys(answers).filter(id => (answers[id] || {})[currentQ.index]).length;
     const activeCount = Object.values(players).filter(p => !p.eliminated).length;
     statusBar.textContent = `${answeredCount}/${activeCount} réponses reçues`;
@@ -873,25 +890,15 @@ async function postQuestion(index) {
   const q = QUESTIONS[index];
   closePopup('popup-questions');
 
-  // Clear previous state atomically
+  // Clear CKI state from previous round
   await remove(ref(db, `parties/${partyKey}/ckiPending`));
   await remove(ref(db, `parties/${partyKey}/ckiUsed`));
-  await remove(ref(db, `parties/${partyKey}/currentQuestion`));
 
-  // Small delay to ensure removes propagate before writing new question
-  await new Promise(r => setTimeout(r, 100));
-
+  // Write new question atomically
   await set(ref(db, `parties/${partyKey}/currentQuestion`), { index, question: q.q, choices: q.a });
   await update(ref(db, `parties/${partyKey}/usedQuestions`), { [index]: true });
   await update(ref(db, `parties/${partyKey}`), { lastActivity: Date.now() });
 }
-
-window.closeQuestion = async function() {
-  await remove(ref(db, `parties/${partyKey}/currentQuestion`));
-  await remove(ref(db, `parties/${partyKey}/ckiPending`));
-  await remove(ref(db, `parties/${partyKey}/ckiUsed`));
-  await update(ref(db, `parties/${partyKey}`), { lastActivity: Date.now() });
-};
 
 // ── CKI ────────────────────────────────────────────────
 function openCki(targetId, targetAlias) {
@@ -920,25 +927,7 @@ window.sendCki = async function() {
   await update(ref(db, `parties/${partyKey}/ckiUsed`), { [myId]: true });
 };
 
-let ckiPopupShownFor = null; // tracks which CKI we already showed popup for
 
-function handleCkiIncoming(data) {
-  const ckiPending = data.ckiPending;
-  if (!ckiPending || ckiPending.resolved) {
-    closePopup('popup-cki-target');
-    ckiPopupShownFor = null;
-    return;
-  }
-  if (ckiPending.targetId === myId) {
-    // Only open popup once per CKI event (avoid re-triggering on every Firebase update)
-    const ckiKey = (ckiPending.targetId || '') + '|' + (ckiPending.proposedName || '') + '|' + (ckiPending.guesserId || '');
-    if (ckiPopupShownFor !== ckiKey) {
-      ckiPopupShownFor = ckiKey;
-      document.getElementById('cki-proposed-name').textContent = ckiPending.proposedName;
-      openPopup('popup-cki-target');
-    }
-  }
-}
 
 window.answerCki = async function(isTrue) {
   closePopup('popup-cki-target');
@@ -953,9 +942,7 @@ window.answerCki = async function(isTrue) {
   await remove(ref(db, `parties/${partyKey}/ckiPending`));
 };
 
-function handleCkiResolved(data) {
-  // Nothing extra needed — reactive render handles it
-}
+
 
 // ── HISTORY ────────────────────────────────────────────────
 window.toggleHistory = function() {
