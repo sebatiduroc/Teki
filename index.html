@@ -163,14 +163,7 @@
     flex-shrink: 0;
   }
   .game-party-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; color: var(--accent); }
-  .btn-history {
-    background: var(--surface2); border: 1.5px solid var(--border);
-    border-radius: 8px; padding: 6px 10px; font-size: 11px;
-    cursor: pointer; color: var(--text); font-family: 'Space Mono', monospace;
-    transition: border-color .2s;
-  }
-  .btn-history:active { border-color: var(--accent); }
-  .btn-history.disabled { opacity: .35; pointer-events: none; }
+
   .btn-quit {
     background: rgba(255,77,109,.12); border: 1.5px solid var(--red);
     border-radius: 8px; padding: 6px 11px; color: var(--red);
@@ -405,10 +398,7 @@
 <div id="screen-game" class="screen">
   <div class="game-header">
     <div class="game-party-name" id="game-party-label">TEKI</div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn-history" id="btn-history" onclick="toggleHistory()">📋 Historique</button>
-      <button class="btn-quit" onclick="confirmQuit()">✕</button>
-    </div>
+    <button class="btn-quit" onclick="confirmQuit()">✕</button>
   </div>
 
   <div class="players-zone" id="players-zone"></div>
@@ -434,14 +424,7 @@
   <button class="btn btn-secondary" onclick="goHome()" style="max-width:340px;width:100%">↩ Accueil</button>
 </div>
 
-<!-- ══════════════ OVERLAY HISTORY ══════════════ -->
-<div class="overlay hidden" id="overlay-history">
-  <div class="overlay-header">
-    <div class="overlay-title">Historique</div>
-    <button class="btn-close" onclick="toggleHistory()">Fermer</button>
-  </div>
-  <div class="overlay-body" id="history-body"></div>
-</div>
+
 
 <!-- ══════════════ POPUP: CHOISIR UNE QUESTION ══════════════ -->
 <div class="popup-overlay hidden" id="popup-questions">
@@ -861,26 +844,28 @@ function renderGame(data) {
   if (currentQ) {
     // Close question picker if it was open (someone else posted a question)
     closePopup('popup-questions');
-    qText.innerHTML = '';
-    qText.textContent = currentQ.question;
 
     const myAnswer = (answers[myId] || {})[currentQ.index];
     const myEliminated = players[myId]?.eliminated;
 
-    currentQ.choices.forEach((choice, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'answer-btn';
-      btn.textContent = choice;
-      if (myAnswer) {
-        btn.classList.add(myAnswer === choice ? 'locked' : '');
-        btn.disabled = true;
-      }
-      if (myEliminated) btn.disabled = true;
-      btn.onclick = () => submitAnswer(currentQ.index, choice);
-      answersGrid.appendChild(btn);
-    });
-
-    // History always accessible
+    if (myAnswer) {
+      // I already answered — hide question and answers
+      qText.style.display = 'none';
+      answersGrid.style.display = 'none';
+    } else {
+      // Show question and answer buttons
+      qText.style.display = '';
+      qText.textContent = currentQ.question;
+      answersGrid.style.display = '';
+      currentQ.choices.forEach((choice) => {
+        const btn = document.createElement('button');
+        btn.className = 'answer-btn';
+        btn.textContent = choice;
+        if (myEliminated) btn.disabled = true;
+        btn.onclick = () => submitAnswer(currentQ.index, choice);
+        answersGrid.appendChild(btn);
+      });
+    }
 
     // Active si personne n'a encore répondu OU si tout le monde a répondu
     const activePlayers3 = Object.entries(players).filter(([,p]) => !p.eliminated);
@@ -888,6 +873,8 @@ function renderGame(data) {
     document.getElementById('btn-ask-question').disabled = anyAnswered && !allAnswered;
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
+    qText.style.display = '';
+    answersGrid.style.display = '';
     document.getElementById('btn-ask-question').disabled = false;
   }
 
@@ -904,8 +891,6 @@ function renderGame(data) {
     statusBar.className = 'status-bar';
   }
 
-  // Update history
-  renderHistory(data);
 }
 
 async function submitAnswer(qIndex, choice) {
@@ -988,44 +973,6 @@ window.answerCki = async function(isTrue) {
   // Clear CKI — must use remove(), Firebase ignores null in update()
   await remove(ref(db, `parties/${partyKey}/ckiPending`));
 };
-
-
-
-// ── HISTORY ────────────────────────────────────────────────
-window.toggleHistory = function() {
-  const ov = document.getElementById('overlay-history');
-  ov.classList.toggle('hidden');
-};
-
-function renderHistory(data) {
-  const body = document.getElementById('history-body');
-  body.innerHTML = '';
-  const used = data.usedQuestions || {};
-  const answers = data.answers || {};
-  const players = data.players || {};
-
-  Object.keys(used).map(Number).sort().forEach(idx => {
-    const q = QUESTIONS[idx];
-    if (!q) return;
-    const div = document.createElement('div');
-    div.className = 'history-q';
-
-    let html = `<div class="history-q-text">${q.q}</div><div class="history-answers">`;
-    Object.entries(players).forEach(([pid, p]) => {
-      const ans = (answers[pid] || {})[idx];
-      if (ans) {
-        html += `<div class="history-answer-row"><span class="history-player">${p.alias}</span><span class="history-resp">${ans}</span></div>`;
-      }
-    });
-    html += '</div>';
-    div.innerHTML = html;
-    body.appendChild(div);
-  });
-
-  if (body.children.length === 0) {
-    body.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center">Aucune question posée pour l\'instant</div>';
-  }
-}
 
 // ── END GAME ────────────────────────────────────────────────
 function checkEndGame(data) {
