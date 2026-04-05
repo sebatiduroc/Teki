@@ -392,6 +392,7 @@
     <div class="answers-grid" id="answers-grid"></div>
     <div class="action-row">
       <button class="btn btn-primary btn-ask-q" id="btn-ask-question" onclick="openQuestionPicker()">Poser une question</button>
+      <button class="btn btn-secondary" id="btn-close-question" onclick="closeQuestion()" style="display:none;padding:15px 12px;font-size:12px">✓ Suivante</button>
     </div>
   </div>
 </div>
@@ -814,12 +815,14 @@ function renderGame(data) {
     document.getElementById('btn-history').classList.remove('disabled');
     document.getElementById('btn-history').classList.remove('btn-history');
 
-    // Ask question button — disabled while a question is active
-    document.getElementById('btn-ask-question').disabled = true;
+    // Ask question button — hidden while a question is active, show "Suivante" instead
+    document.getElementById('btn-ask-question').style.display = 'none';
+    document.getElementById('btn-close-question').style.display = 'flex';
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
-    // Enable only if not eliminated — CKI does NOT block asking a new question
+    document.getElementById('btn-ask-question').style.display = 'flex';
     document.getElementById('btn-ask-question').disabled = players[myId]?.eliminated || false;
+    document.getElementById('btn-close-question').style.display = 'none';
   }
 
   // CKI lock: if ckiPending, disable alias clicks — already handled above since ckiPending truthy
@@ -870,16 +873,25 @@ async function postQuestion(index) {
   const q = QUESTIONS[index];
   closePopup('popup-questions');
 
-  // Mark used
-  await update(ref(db, `parties/${partyKey}/usedQuestions`), { [index]: true });
+  // Clear previous state atomically
+  await remove(ref(db, `parties/${partyKey}/ckiPending`));
+  await remove(ref(db, `parties/${partyKey}/ckiUsed`));
+  await remove(ref(db, `parties/${partyKey}/currentQuestion`));
 
-  await update(ref(db, `parties/${partyKey}`), {
-    currentQuestion: { index, question: q.q, choices: q.a },
-    ckiPending: null,
-    ckiUsed: null,
-    lastActivity: Date.now(),
-  });
+  // Small delay to ensure removes propagate before writing new question
+  await new Promise(r => setTimeout(r, 100));
+
+  await set(ref(db, `parties/${partyKey}/currentQuestion`), { index, question: q.q, choices: q.a });
+  await update(ref(db, `parties/${partyKey}/usedQuestions`), { [index]: true });
+  await update(ref(db, `parties/${partyKey}`), { lastActivity: Date.now() });
 }
+
+window.closeQuestion = async function() {
+  await remove(ref(db, `parties/${partyKey}/currentQuestion`));
+  await remove(ref(db, `parties/${partyKey}/ckiPending`));
+  await remove(ref(db, `parties/${partyKey}/ckiUsed`));
+  await update(ref(db, `parties/${partyKey}`), { lastActivity: Date.now() });
+};
 
 // ── CKI ────────────────────────────────────────────────
 function openCki(targetId, targetAlias) {
