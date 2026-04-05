@@ -103,6 +103,12 @@
   .party-item:active { border-color: var(--accent); }
   .party-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
   .party-count { color: var(--muted); font-size: 11px; }
+  .btn-delete-party {
+    background: rgba(255,77,109,.15); border: 1.5px solid var(--red);
+    border-radius: 8px; padding: 4px 10px; color: var(--red);
+    font-size: 14px; cursor: pointer; margin-left: 8px; flex-shrink: 0;
+  }
+  .btn-delete-party:active { background: rgba(255,77,109,.35); }
 
   /* ── WAITING ROOM ── */
   #screen-waiting {
@@ -355,7 +361,7 @@
   </div>
   <div id="waiting-players-grid"></div>
   <button class="btn btn-primary" id="btn-start" style="max-width:340px;width:100%">▶ Lancer la partie</button>
-  <div id="waiting-status" style="font-size:12px;color:var(--muted);text-align:center"></div>
+
 </div>
 
 <!-- ══════════════ GAME ══════════════ -->
@@ -581,12 +587,24 @@ async function loadParties() {
       return;
     }
     list.innerHTML = '';
+    // Read session to know if we're host of one of these parties
+    let session = null;
+    try { session = JSON.parse(localStorage.getItem('teki_session') || 'null'); } catch {}
+
     entries.forEach(([key, party]) => {
       const playerCount = Object.keys(party.players || {}).length;
+      const isMine = session && session.partyKey === key && session.isHost;
       const div = document.createElement('div');
       div.className = 'party-item';
-      div.innerHTML = `<span class="party-name">${party.name}</span><span class="party-count">${playerCount}/10 joueur${playerCount>1?'s':''}</span>`;
-      div.onclick = () => joinParty(key, party.name);
+
+      const nameSpan = `<span class="party-name">${party.name}</span>`;
+      const countSpan = `<span class="party-count">${playerCount}/10 joueur${playerCount>1?'s':''}</span>`;
+      const deleteBtn = isMine
+        ? `<button class="btn-delete-party" onclick="deleteMyParty(event,'${key}')">🗑</button>`
+        : '';
+      div.innerHTML = nameSpan + countSpan + deleteBtn;
+      if (!isMine) div.onclick = () => joinParty(key, party.name);
+      else div.style.borderColor = 'var(--accent)';
       list.appendChild(div);
     });
   });
@@ -615,6 +633,7 @@ document.getElementById('btn-create').onclick = async () => {
     }
   });
 
+  localStorage.setItem('teki_session', JSON.stringify({ partyKey: newRef.key, playerId: myId, alias: myAlias, isHost: true }));
   listenWaiting();
   showScreen('waiting');
   document.getElementById('waiting-party-name').textContent = pName;
@@ -642,6 +661,7 @@ async function joinParty(key, name) {
   });
   await update(ref(db, `parties/${key}`), { lastActivity: Date.now() });
 
+  localStorage.setItem('teki_session', JSON.stringify({ partyKey: key, playerId: myId, alias: myAlias, isHost: false }));
   listenWaiting();
   showScreen('waiting');
   document.getElementById('waiting-party-name').textContent = name;
@@ -658,7 +678,6 @@ function listenWaiting() {
     const grid = document.getElementById('waiting-players-grid');
     const count = Object.keys(players).length;
     grid.innerHTML = `<div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--text);text-align:center">${count}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:8px">joueur${count>1?'s':''} connecté${count>1?'s':''}</span></div>`;
-    document.getElementById('waiting-status').textContent = `${count} joueur${count>1?'s':''} en attente`;
     document.getElementById('btn-start').disabled = count < 2;
 
     if (data.status === 'playing') {
@@ -961,7 +980,7 @@ function showEndGame(players, loserId, loserAlias) {
 }
 
 window.goHome = function() {
-  // Clean up
+  localStorage.removeItem('teki_session');
   if (isHost) {
     remove(ref(db, `parties/${partyKey}`));
   } else {
@@ -970,8 +989,57 @@ window.goHome = function() {
   location.reload();
 };
 
+// ── DELETE PARTY ────────────────────────────────────────────────
+window.deleteMyParty = async function(e, key) {
+  e.stopPropagation();
+  if (!confirm('Supprimer cette partie ?')) return;
+  localStorage.removeItem('teki_session');
+  await remove(ref(db, `parties/${key}`));
+};
+
 // ── INIT ────────────────────────────────────────────────
-loadParties();
+async function tryReconnect() {
+  const raw = localStorage.getItem('teki_session');
+  if (!raw) return false;
+  let session;
+  try { session = JSON.parse(raw); } catch { localStorage.removeItem('teki_session'); return false; }
+
+  const { partyKey: pk, playerId: pid, alias: al, isHost: ih } = session;
+  const partySnap = await get(ref(db, `parties/${pk}`));
+  const partyData = partySnap.val();
+
+  if (!partyData) {
+    // Party gone
+    localStorage.removeItem('teki_session');
+    return false;
+  }
+
+  // Restore state
+  partyKey = pk;
+  myId = pid;
+  myAlias = al;
+  isHost = ih;
+  partyName = partyData.name;
+
+  document.getElementById('waiting-party-name').textContent = partyData.name;
+  document.getElementById('my-alias-display').textContent = myAlias;
+  document.getElementById('btn-start').style.display = ih ? 'flex' : 'none';
+
+  if (partyData.status === 'playing') {
+    startGame(partyData);
+  } else {
+    listenWaiting();
+    showScreen('waiting');
+  }
+  return true;
+}
+
+async function init() {
+  const reconnected = await tryReconnect();
+  if (!reconnected) loadParties();
+}
+
+init();
 
 // Enter key on inputs
 document.getElementById('cki-name-input').addEventListener('keydown', e => {
