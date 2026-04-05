@@ -856,7 +856,13 @@ function renderGame(data) {
   zone.innerHTML = '';
   const myCkiUsed = data.ckiUsed && data.ckiUsed[myId];
 
-  Object.entries(players).forEach(([id, p]) => {
+  // Sort: me first, then others alphabetically by alias
+  const sortedPlayers = Object.entries(players).sort(([idA, pA], [idB, pB]) => {
+    if (idA === myId) return -1;
+    if (idB === myId) return 1;
+    return pA.alias.localeCompare(pB.alias, 'fr');
+  });
+  sortedPlayers.forEach(([id, p]) => {
     const row = document.createElement('div');
     row.className = 'player-row' + (id === myId ? ' is-me' : '') + (p.eliminated ? ' eliminated' : '');
 
