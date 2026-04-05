@@ -1044,8 +1044,11 @@ window.answerCki = async function(isTrue) {
   if (!ckiPending) return;
 
   if (isTrue) {
-    // Mark me as unmasked
-    await update(ref(db, `parties/${partyKey}/players/${myId}`), { unmasked: true });
+    // Mark me as unmasked and store the revealed name
+    await update(ref(db, `parties/${partyKey}/players/${myId}`), {
+      unmasked: true,
+      revealedName: ckiPending.proposedName
+    });
   }
   // Clear CKI — must use remove(), Firebase ignores null in update()
   await remove(ref(db, `parties/${partyKey}/ckiPending`));
@@ -1099,10 +1102,11 @@ function renderEndResults(players, loserId, loserRealName) {
     const row = document.createElement('div');
     row.className = 'end-row';
     const isLoser = id === loserId;
-    const realName = isLoser ? (loserRealName || '…') : (p.revealedName || '');
+    // Use loserRealName for loser (entered via teki popup), revealedName for others (stored at CKI time)
+    const realName = isLoser ? (loserRealName || '…') : (p.revealedName || '?');
     row.innerHTML = `
       <span class="end-alias" style="color:${isLoser ? 'var(--red)' : 'var(--green)'}">${p.alias}</span>
-      <span style="color:var(--muted);font-size:12px">${realName ? '= ' + realName : ''}</span>
+      <span style="color:var(--muted);font-size:12px">= ${realName}</span>
     `;
     results.appendChild(row);
   });
