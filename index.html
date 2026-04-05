@@ -870,15 +870,13 @@ window.sendCki = async function() {
 
   const myAliasCurrent = gameState?.players?.[myId]?.alias || myAlias;
 
-  // Write CKI to firebase
+  // Write CKI to firebase using explicit paths (Firebase drops null values in nested objects)
   await update(ref(db, `parties/${partyKey}`), {
-    ckiPending: {
-      guesserId: myId,
-      guesserAlias: myAliasCurrent,
-      targetId: ckiTargetId,
-      proposedName: proposedName,
-      resolvedAt: null,
-    },
+    'ckiPending/guesserId': myId,
+    'ckiPending/guesserAlias': myAliasCurrent,
+    'ckiPending/targetId': ckiTargetId,
+    'ckiPending/proposedName': proposedName,
+    'ckiPending/resolved': false,
     [`ckiUsed/${myId}`]: true,
   });
 };
@@ -889,7 +887,7 @@ function handleCkiIncoming(data) {
     closePopup('popup-cki-target');
     return;
   }
-  if (ckiPending.targetId === myId && !ckiPending.resolvedAt) {
+  if (ckiPending.targetId === myId && !ckiPending.resolved) {
     document.getElementById('cki-proposed-name').textContent = ckiPending.proposedName;
     openPopup('popup-cki-target');
   }
