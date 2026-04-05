@@ -212,6 +212,7 @@
   .own-alias { outline: 2px solid currentColor; border-radius: 6px; cursor: default !important; }
   .cki-clickable { cursor: pointer; text-decoration: underline dotted; }
   .cki-clickable:active { background: rgba(255,77,109,.2); border-radius: 6px; }
+  .player-alias { user-select: none; -webkit-user-select: none; }
   .player-alias.red-alias { color: var(--red); }
   .player-alias:not(.unmasked):active { background: rgba(255,77,109,.15); }
   .player-answer {
@@ -379,7 +380,7 @@
   <div class="game-header">
     <div class="game-party-name" id="game-party-label">TEKI</div>
     <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn-history disabled" id="btn-history" onclick="toggleHistory()">📋 Historique</button>
+      <button class="btn-history" id="btn-history" onclick="toggleHistory()">📋 Historique</button>
       <button class="btn-quit" onclick="confirmQuit()">✕</button>
     </div>
   </div>
@@ -834,15 +835,13 @@ function renderGame(data) {
       answersGrid.appendChild(btn);
     });
 
-    // History button active
-    document.getElementById('btn-history').classList.remove('disabled');
-    document.getElementById('btn-history').classList.remove('btn-history');
+    // History always accessible
 
     // Ask question button disabled while a question is active
     document.getElementById('btn-ask-question').disabled = true;
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
-    document.getElementById('btn-ask-question').disabled = players[myId]?.eliminated || false;
+    document.getElementById('btn-ask-question').disabled = false;
   }
 
   // CKI lock: if ckiPending, disable alias clicks — already handled above since ckiPending truthy
