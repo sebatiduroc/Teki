@@ -882,13 +882,13 @@ function renderGame(data) {
 
     // History always accessible
 
-    // Ask question button: disabled UNLESS everyone has already answered
-    document.getElementById('btn-ask-question').disabled = !allAnswered;
+    // Active si personne n'a encore répondu OU si tout le monde a répondu
+    const activePlayers3 = Object.entries(players).filter(([,p]) => !p.eliminated);
+    const anyAnswered = activePlayers3.some(([pid]) => !!(answers[pid] || {})[currentQ.index]);
+    document.getElementById('btn-ask-question').disabled = anyAnswered && !allAnswered;
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
-    // Enable only if a question was already played (not at game start before first question)
-    const hasPlayedQuestions = Object.keys(data.usedQuestions || {}).length > 0;
-    document.getElementById('btn-ask-question').disabled = !hasPlayedQuestions;
+    document.getElementById('btn-ask-question').disabled = false;
   }
 
   // CKI lock: if ckiPending, disable alias clicks — already handled above since ckiPending truthy
