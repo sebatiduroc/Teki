@@ -22,6 +22,7 @@
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body.loading { visibility: hidden; }
 
   body {
     font-family: 'Space Mono', monospace;
@@ -363,12 +364,13 @@
   }
 </style>
 </head>
-<body>
+<body class="loading">
 
 <!-- ══════════════ LOBBY ══════════════ -->
 <div id="screen-lobby" class="screen active">
   <div class="logo">TEKI</div>
   <div class="logo-sub">Qui est qui ?</div>
+  <div class="logo-sub" style="font-size:10px;margin-top:-16px;opacity:.6">Un jeu de Sébastien Dumortier</div>
 
   <div class="lobby-section">
     <div class="lobby-label">Créer une partie</div>
@@ -1127,6 +1129,7 @@ async function tryReconnect() {
 async function init() {
   const reconnected = await tryReconnect();
   if (!reconnected) loadParties();
+  document.body.classList.remove('loading');
 }
 
 init();
