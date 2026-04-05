@@ -171,6 +171,13 @@
   }
   .btn-history:active { border-color: var(--accent); }
   .btn-history.disabled { opacity: .35; pointer-events: none; }
+  .btn-quit {
+    background: rgba(255,77,109,.12); border: 1.5px solid var(--red);
+    border-radius: 8px; padding: 6px 11px; color: var(--red);
+    font-size: 13px; cursor: pointer; font-family: 'Space Mono', monospace;
+    transition: background .15s;
+  }
+  .btn-quit:active { background: rgba(255,77,109,.3); }
 
   /* Players scroll zone */
   .players-zone {
@@ -368,7 +375,10 @@
 <div id="screen-game" class="screen">
   <div class="game-header">
     <div class="game-party-name" id="game-party-label">TEKI</div>
-    <button class="btn-history disabled" id="btn-history" onclick="toggleHistory()">📋 Historique</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn-history disabled" id="btn-history" onclick="toggleHistory()">📋 Historique</button>
+      <button class="btn-quit" onclick="confirmQuit()">✕</button>
+    </div>
   </div>
 
   <div class="players-zone" id="players-zone"></div>
@@ -680,6 +690,15 @@ function listenWaiting() {
     grid.innerHTML = `<div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--text);text-align:center">${count}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:8px">joueur${count>1?'s':''} connecté${count>1?'s':''}</span></div>`;
     document.getElementById('btn-start').disabled = count < 2;
 
+    // Detect if I've become host
+    if (data.host === myId && !isHost) {
+      isHost = true;
+      const session = JSON.parse(localStorage.getItem('teki_session') || '{}');
+      session.isHost = true;
+      localStorage.setItem('teki_session', JSON.stringify(session));
+      document.getElementById('btn-start').style.display = 'flex';
+    }
+
     if (data.status === 'playing') {
       startGame(data);
     }
@@ -704,6 +723,13 @@ function listenGame() {
     const data = snap.val();
     if (!data) return;
     gameState = data;
+    // Update isHost in case it changed
+    if (data.host === myId && !isHost) {
+      isHost = true;
+      const session = JSON.parse(localStorage.getItem('teki_session') || '{}');
+      session.isHost = true;
+      localStorage.setItem('teki_session', JSON.stringify(session));
+    }
     renderGame(data);
     checkEndGame(data);
     handleCkiIncoming(data);
@@ -976,6 +1002,29 @@ function showEndGame(players, loserId, loserAlias) {
     results.appendChild(row);
   });
 }
+
+window.confirmQuit = async function() {
+  if (!confirm('Quitter la partie ?')) return;
+  localStorage.removeItem('teki_session');
+
+  if (isHost) {
+    // Pick a random remaining active player to become host
+    const snap = await get(ref(db, `parties/${partyKey}/players`));
+    const players = snap.val() || {};
+    const others = Object.entries(players).filter(([id, p]) => id !== myId && !p.eliminated);
+    if (others.length > 0) {
+      const [newHostId] = others[Math.floor(Math.random() * others.length)];
+      await update(ref(db, `parties/${partyKey}`), { host: newHostId });
+    } else {
+      // No one left, delete the party
+      await remove(ref(db, `parties/${partyKey}`));
+      location.reload();
+      return;
+    }
+  }
+  await remove(ref(db, `parties/${partyKey}/players/${myId}`));
+  location.reload();
+};
 
 window.goHome = function() {
   localStorage.removeItem('teki_session');
