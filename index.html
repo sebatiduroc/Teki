@@ -550,8 +550,28 @@ function openPopup(id) {
 }
 
 // ── LOBBY ────────────────────────────────────────────────
-function loadParties() {
+const ONE_HOUR = 60 * 60 * 1000;
+
+async function cleanOldParties(data) {
+  const now = Date.now();
+  const deletions = [];
+  Object.entries(data).forEach(([key, party]) => {
+    const last = party.lastActivity || party.createdAt || 0;
+    if (now - last > ONE_HOUR) {
+      deletions.push(remove(ref(db, `parties/${key}`)));
+    }
+  });
+  if (deletions.length) await Promise.all(deletions);
+}
+
+async function loadParties() {
   const partiesRef = ref(db, 'parties');
+  // Clean stale parties before showing anything
+  const initSnap = await get(partiesRef);
+  const initData = initSnap.val() || {};
+  await cleanOldParties(initData);
+
+  // Then live listener
   onValue(partiesRef, snap => {
     const data = snap.val() || {};
     const list = document.getElementById('party-list');
@@ -589,6 +609,7 @@ document.getElementById('btn-create').onclick = async () => {
     status: 'waiting',
     host: myId,
     createdAt: serverTimestamp(),
+    lastActivity: Date.now(),
     players: {
       [myId]: { alias: myAlias, unmasked: false, eliminated: false }
     }
@@ -619,6 +640,7 @@ async function joinParty(key, name) {
   await update(ref(db, `parties/${key}/players/${myId}`), {
     alias: myAlias, unmasked: false, eliminated: false
   });
+  await update(ref(db, `parties/${key}`), { lastActivity: Date.now() });
 
   listenWaiting();
   showScreen('waiting');
@@ -776,6 +798,7 @@ function renderGame(data) {
 
 async function submitAnswer(qIndex, choice) {
   await update(ref(db, `parties/${partyKey}/answers/${myId}`), { [qIndex]: choice });
+  await update(ref(db, `parties/${partyKey}`), { lastActivity: Date.now() });
 }
 
 // ── QUESTION PICKER ────────────────────────────────────────
@@ -807,7 +830,8 @@ async function postQuestion(index) {
   await update(ref(db, `parties/${partyKey}`), {
     currentQuestion: { index, question: q.q, choices: q.a },
     ckiPending: null,
-    ckiUsed: null, // reset per-question cki usage
+    ckiUsed: null,
+    lastActivity: Date.now(),
   });
 }
 
