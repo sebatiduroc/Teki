@@ -785,6 +785,14 @@ function renderGame(data) {
   const answers = data.answers || {};
   const ckiPending = data.ckiPending || null;
 
+  // Pre-compute allAnswered at top level so it's available throughout renderGame
+  let allAnswered = false;
+  if (currentQ) {
+    const activePlayers2 = Object.entries(players).filter(([,p]) => !p.eliminated);
+    const answeredCount2 = activePlayers2.filter(([pid]) => !!(answers[pid] || {})[currentQ.index]).length;
+    allAnswered = answeredCount2 >= activePlayers2.length && activePlayers2.length > 0;
+  }
+
   // Players zone
   const zone = document.getElementById('players-zone');
   zone.innerHTML = '';
@@ -865,8 +873,8 @@ function renderGame(data) {
 
     // History always accessible
 
-    // Ask question button disabled while a question is active
-    document.getElementById('btn-ask-question').disabled = true;
+    // Ask question button: disabled UNLESS everyone has already answered
+    document.getElementById('btn-ask-question').disabled = !allAnswered;
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
     document.getElementById('btn-ask-question').disabled = false;
