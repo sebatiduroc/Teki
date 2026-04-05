@@ -909,6 +909,14 @@ function renderGame(data) {
 async function submitAnswer(qIndex, choice) {
   await update(ref(db, `parties/${partyKey}/answers/${myId}`), { [qIndex]: choice });
   await update(ref(db, `parties/${partyKey}`), { lastActivity: Date.now() });
+  // Force local re-render after answering so button state updates immediately
+  const snap = await get(ref(db, `parties/${partyKey}`));
+  const fresh = snap.val();
+  if (fresh) {
+    gameState = fresh;
+    renderGame(fresh);
+    checkEndGame(fresh);
+  }
 }
 
 // ── QUESTION PICKER ────────────────────────────────────────
