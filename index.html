@@ -897,15 +897,15 @@ window.sendCki = async function() {
 
   const myAliasCurrent = gameState?.players?.[myId]?.alias || myAlias;
 
-  // Write CKI to firebase using explicit paths (Firebase drops null values in nested objects)
-  await update(ref(db, `parties/${partyKey}`), {
-    'ckiPending/guesserId': myId,
-    'ckiPending/guesserAlias': myAliasCurrent,
-    'ckiPending/targetId': ckiTargetId,
-    'ckiPending/proposedName': proposedName,
-    'ckiPending/resolved': false,
-    [`ckiUsed/${myId}`]: true,
+  // Write ckiPending atomically with set() to avoid multiple onValue triggers
+  await set(ref(db, `parties/${partyKey}/ckiPending`), {
+    guesserId: myId,
+    guesserAlias: myAliasCurrent,
+    targetId: ckiTargetId,
+    proposedName: proposedName,
+    resolved: false,
   });
+  await update(ref(db, `parties/${partyKey}/ckiUsed`), { [myId]: true });
 };
 
 let ckiPopupShownFor = null; // tracks which CKI we already showed popup for
@@ -919,7 +919,7 @@ function handleCkiIncoming(data) {
   }
   if (ckiPending.targetId === myId) {
     // Only open popup once per CKI event (avoid re-triggering on every Firebase update)
-    const ckiKey = ckiPending.guesserId + ckiPending.proposedName;
+    const ckiKey = (ckiPending.targetId || '') + '|' + (ckiPending.proposedName || '') + '|' + (ckiPending.guesserId || '');
     if (ckiPopupShownFor !== ckiKey) {
       ckiPopupShownFor = ckiKey;
       document.getElementById('cki-proposed-name').textContent = ckiPending.proposedName;
