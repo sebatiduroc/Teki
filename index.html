@@ -764,6 +764,15 @@ function listenGame() {
     checkEndGame(data);
   });
 
+  // Dedicated listener on answers — ensures the answering player also gets re-rendered
+  const answersRef = ref(db, `parties/${partyKey}/answers`);
+  onValue(answersRef, snap => {
+    if (!gameState) return;
+    gameState.answers = snap.val() || {};
+    renderGame(gameState);
+    checkEndGame(gameState);
+  });
+
   // Dedicated listener on ckiPending — fires only when CKI changes
   const ckiRef = ref(db, `parties/${partyKey}/ckiPending`);
   onValue(ckiRef, snap => {
