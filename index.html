@@ -757,8 +757,8 @@ function renderGame(data) {
     aliasEl.className = 'player-alias ' + (p.unmasked ? 'unmasked' : 'red-alias');
     aliasEl.textContent = p.alias + (id === myId ? ' (moi)' : '');
 
-    // Click to CKI
-    if (id !== myId && !p.unmasked && !p.eliminated && currentQ && !myCkiUsed && !ckiPending) {
+    // Click to CKI — allowed once a question has been asked, one per player per question
+    if (id !== myId && !p.unmasked && !p.eliminated && currentQ && !myCkiUsed) {
       aliasEl.onclick = () => openCki(id, p.alias);
     }
 
@@ -814,18 +814,19 @@ function renderGame(data) {
     document.getElementById('btn-history').classList.remove('disabled');
     document.getElementById('btn-history').classList.remove('btn-history');
 
-    // Ask question button
+    // Ask question button — disabled while a question is active
     document.getElementById('btn-ask-question').disabled = true;
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
+    // Enable only if not eliminated — CKI does NOT block asking a new question
     document.getElementById('btn-ask-question').disabled = players[myId]?.eliminated || false;
   }
 
   // CKI lock: if ckiPending, disable alias clicks — already handled above since ckiPending truthy
   // Status bar
   const statusBar = document.getElementById('status-bar');
-  if (ckiPending) {
-    statusBar.textContent = `🎯 ${ckiPending.guesserAlias} essaie de démasquer quelqu'un…`;
+  if (ckiPending && !ckiPending.resolved) {
+    statusBar.textContent = `🎯 ${ckiPending.guesserAlias} tente de démasquer quelqu'un…`;
     statusBar.className = 'status-bar alert';
   } else if (currentQ) {
     const answeredCount = Object.keys(answers).filter(id => (answers[id] || {})[currentQ.index]).length;
@@ -907,15 +908,23 @@ window.sendCki = async function() {
   });
 };
 
+let ckiPopupShownFor = null; // tracks which CKI we already showed popup for
+
 function handleCkiIncoming(data) {
   const ckiPending = data.ckiPending;
-  if (!ckiPending) {
+  if (!ckiPending || ckiPending.resolved) {
     closePopup('popup-cki-target');
+    ckiPopupShownFor = null;
     return;
   }
-  if (ckiPending.targetId === myId && !ckiPending.resolved) {
-    document.getElementById('cki-proposed-name').textContent = ckiPending.proposedName;
-    openPopup('popup-cki-target');
+  if (ckiPending.targetId === myId) {
+    // Only open popup once per CKI event (avoid re-triggering on every Firebase update)
+    const ckiKey = ckiPending.guesserId + ckiPending.proposedName;
+    if (ckiPopupShownFor !== ckiKey) {
+      ckiPopupShownFor = ckiKey;
+      document.getElementById('cki-proposed-name').textContent = ckiPending.proposedName;
+      openPopup('popup-cki-target');
+    }
   }
 }
 
@@ -928,8 +937,8 @@ window.answerCki = async function(isTrue) {
     // Mark me as unmasked
     await update(ref(db, `parties/${partyKey}/players/${myId}`), { unmasked: true });
   }
-  // Clear CKI
-  await update(ref(db, `parties/${partyKey}`), { ckiPending: null });
+  // Clear CKI — must use remove(), Firebase ignores null in update()
+  await remove(ref(db, `parties/${partyKey}/ckiPending`));
 };
 
 function handleCkiResolved(data) {
