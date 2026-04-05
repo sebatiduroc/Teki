@@ -421,7 +421,7 @@
     </div>
     <div class="answers-grid" id="answers-grid"></div>
     <div class="action-row">
-      <button class="btn btn-primary btn-ask-q" id="btn-ask-question" onclick="openQuestionPicker()">Poser une question</button>
+      <button class="btn btn-primary btn-ask-q" id="btn-ask-question" onclick="openQuestionPicker()" disabled>Poser une question</button>
     </div>
   </div>
 </div>
@@ -886,7 +886,9 @@ function renderGame(data) {
     document.getElementById('btn-ask-question').disabled = !allAnswered;
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
-    document.getElementById('btn-ask-question').disabled = false;
+    // Enable only if a question was already played (not at game start before first question)
+    const hasPlayedQuestions = Object.keys(data.usedQuestions || {}).length > 0;
+    document.getElementById('btn-ask-question').disabled = !hasPlayedQuestions;
   }
 
   // CKI lock: if ckiPending, disable alias clicks — already handled above since ckiPending truthy
