@@ -822,17 +822,29 @@ function listenGame() {
     checkEndGame(gameState);
   });
 
-  // Dedicated listener on ckiPending — fires only when CKI changes
-  const ckiRef = ref(db, `parties/${partyKey}/ckiPending`);
-  onValue(ckiRef, snap => {
-    const cki = snap.val();
-    if (!cki) {
+  // Listen to ckiQueue — show popup for first item targeting me
+  let currentCkiKey = null;
+  const ckiQueueRef = ref(db, `parties/${partyKey}/ckiQueue`);
+  onValue(ckiQueueRef, snap => {
+    const queue = snap.val();
+    if (!queue) {
       closePopup('popup-cki-target');
+      currentCkiKey = null;
       return;
     }
-    if (cki.targetId === myId) {
-      document.getElementById('cki-proposed-name').textContent = cki.proposedName;
-      openPopup('popup-cki-target');
+    // Find first entry targeting me
+    const entries = Object.entries(queue);
+    const mine = entries.find(([, cki]) => cki.targetId === myId);
+    if (mine) {
+      const [key, cki] = mine;
+      if (currentCkiKey !== key) {
+        currentCkiKey = key;
+        document.getElementById('cki-proposed-name').textContent = cki.proposedName;
+        openPopup('popup-cki-target');
+      }
+    } else {
+      closePopup('popup-cki-target');
+      currentCkiKey = null;
     }
   });
 }
@@ -841,7 +853,9 @@ function renderGame(data) {
   const players = data.players || {};
   const currentQ = data.currentQuestion || null;
   const answers = data.answers || {};
-  const ckiPending = data.ckiPending || null;
+  const ckiPending = data.ckiPending || null; // kept for legacy
+  const ckiQueue = data.ckiQueue || {};
+  const ckiQueueSize = Object.keys(ckiQueue).length;
 
   // Pre-compute allAnswered at top level so it's available throughout renderGame
   let allAnswered = false;
@@ -939,10 +953,8 @@ function renderGame(data) {
       });
     }
 
-    // Active si personne n'a encore répondu OU si tout le monde a répondu
-    const activePlayers3 = Object.entries(players).filter(([,p]) => !p.eliminated);
-    const anyAnswered = activePlayers3.some(([pid]) => !!(answers[pid] || {})[currentQ.index]);
-    document.getElementById('btn-ask-question').disabled = anyAnswered && !allAnswered;
+    // Blocked as soon as a question is active, re-enabled only when all have answered
+    document.getElementById('btn-ask-question').disabled = !allAnswered;
   } else {
     qText.innerHTML = '<span class="question-placeholder">Aucune question en cours</span>';
     qText.style.display = '';
@@ -1001,6 +1013,7 @@ async function postQuestion(index) {
 
   // Clear CKI state from previous round
   await remove(ref(db, `parties/${partyKey}/ckiPending`));
+  await remove(ref(db, `parties/${partyKey}/ckiQueue`));
   await remove(ref(db, `parties/${partyKey}/ckiUsed`));
 
   // Write new question atomically
@@ -1025,13 +1038,13 @@ window.sendCki = async function() {
 
   const myAliasCurrent = gameState?.players?.[myId]?.alias || myAlias;
 
-  // Write ckiPending atomically with set() to avoid multiple onValue triggers
-  await set(ref(db, `parties/${partyKey}/ckiPending`), {
+  // Push to CKI queue
+  const newCkiRef = push(ref(db, `parties/${partyKey}/ckiQueue`));
+  await set(newCkiRef, {
     guesserId: myId,
     guesserAlias: myAliasCurrent,
     targetId: ckiTargetId,
     proposedName: proposedName,
-    resolved: false,
   });
   await update(ref(db, `parties/${partyKey}/ckiUsed`), { [myId]: true });
 };
@@ -1040,18 +1053,20 @@ window.sendCki = async function() {
 
 window.answerCki = async function(isTrue) {
   closePopup('popup-cki-target');
-  const ckiPending = gameState?.ckiPending;
-  if (!ckiPending) return;
+  // Find my current CKI in the queue
+  const queue = gameState?.ckiQueue || {};
+  const mine = Object.entries(queue).find(([, cki]) => cki.targetId === myId);
+  if (!mine) return;
+  const [queueKey, cki] = mine;
 
   if (isTrue) {
-    // Mark me as unmasked and store the revealed name
     await update(ref(db, `parties/${partyKey}/players/${myId}`), {
       unmasked: true,
-      revealedName: ckiPending.proposedName
+      revealedName: cki.proposedName
     });
   }
-  // Clear CKI — must use remove(), Firebase ignores null in update()
-  await remove(ref(db, `parties/${partyKey}/ckiPending`));
+  // Remove this entry from queue
+  await remove(ref(db, `parties/${partyKey}/ckiQueue/${queueKey}`));
 };
 
 // ── END GAME ────────────────────────────────────────────────
@@ -1247,6 +1262,12 @@ async function tryReconnect() {
   document.getElementById('waiting-party-name').textContent = partyData.name;
   document.getElementById('my-alias-display').textContent = myAlias;
   document.getElementById('btn-start').style.display = ih ? 'flex' : 'none';
+
+  // Check player is still in the party (may have been removed)
+  if (!partyData.players || !partyData.players[pid]) {
+    localStorage.removeItem('teki_session');
+    return false;
+  }
 
   if (partyData.status === 'playing') {
     startGame(partyData);
